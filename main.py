@@ -1,4 +1,4 @@
-from board import GameBoard
+from board import GameBoard, Result
 from players import Player
 
 
@@ -57,6 +57,7 @@ def main():
             result = board.make_move(move)
         if not result.success:
             print('Failed to get valid move for player {}: {}'.format(current_player % 2 + 1, move))
+            game_result = Result({players[(current_player + 1) % 2].condition[0]: True})  # Lose the game
             break
         print(str(board))
         current_player += 1
