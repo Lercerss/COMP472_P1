@@ -108,14 +108,14 @@ class GameBoard:
         if not _within_bounds(move.x, move.y, move.placement):
             return Result({'within bounds': False})
         return Result({
-            'has support': self._has_support(move.x, move.y, move.placement),
-            'space available': self._space_avail(move.x, move.y, move.placement),
+            'has support': self._has_support(move.x, move.y, move.placement)
         })
 
     def _verify_add(self, move):
         """Checks that the given move would be a legal add"""
         return Result({
             'cards left': self._num_moves < 24,
+            'space available': self._space_avail(move.x, move.y, move.placement),
             **self._verify_move(move).conditions
         })
 
@@ -150,6 +150,9 @@ class GameBoard:
             'can remove': self._can_remove(move),
             'different than last': not self.last_recycled or (
                     self.last_recycled.x != move.old_pos1[0] or self.last_recycled.y != move.old_pos1[1]),
+            'space available': (move.old_pos1[0] == move.x and move.old_pos1[1] == move.y and found
+                                and not found[0].placement == move.placement) or self._space_avail(move.x, move.y,
+                                                                                                   move.placement),
             **self._verify_move(move).conditions
         })
         return result
