@@ -113,17 +113,22 @@ class GameBoard:
 
     def _verify_add(self, move):
         """Checks that the given move would be a legal add"""
+        result_move = self._verify_move(move)
+        if not result_move.success:
+            return result_move
+
         result = {
             'cards left': self._num_moves < 24,
             'space available': self._space_avail(move.x, move.y, move.placement),
         }
-        result.update(self._verify_move(move).conditions)
+        result.update(result_move.conditions)
         return Result(result)
 
     def _add_card(self, move):
         result = self._verify_add(move)
         if result.success:
             self._apply(move)
+            self.last_recycled = move
         return result
 
     def _can_remove(self, move):
@@ -144,6 +149,10 @@ class GameBoard:
 
     def _verify_recycle(self, move):
         """Checks that the given move would a legal recycling"""
+        result_move = self._verify_move(move)
+        if not result_move.success:
+            return result_move
+
         found = self._find_old_move(move)
         result = {
             'all cards placed': self._num_moves >= 24,
@@ -155,7 +164,7 @@ class GameBoard:
                                 and not found[0].placement == move.placement) or self._space_avail(move.x, move.y,
                                                                                                    move.placement),
         }
-        result.update(self._verify_move(move).conditions)
+        result.update(result_move.conditions)
         return Result(result)
 
     def _remove(self, old_move):

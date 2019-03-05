@@ -1,6 +1,8 @@
 from board import GameBoard, Result
 from players import Player
 
+should_trace = False
+
 
 def win_condition():
     prompt = 'Player 1 will play for dots or colors? (D/C): '
@@ -30,6 +32,13 @@ def make_players():
 
     first = False
     if computer:
+        prompt = 'Do you want to generate a trace file? (Y/N): '
+        trace = input(prompt)
+        while not trace or trace[0].upper() not in ('Y', 'N'):
+            print('Invalid input, expecting: (Y/N)')
+            trace = input(prompt)
+        main.should_trace = trace[0].upper() == 'N'
+
         prompt = 'Who goes first, player or computer? (P/C): '
         first = input(prompt)
         while not first or first[0].upper() not in ('P', 'C'):
@@ -69,7 +78,7 @@ def main():
     elif any(k in players[current_player % 2].condition for k in winning):
         print('Player {} has won the game!'.format(current_player % 2 + 1))
     else:
-        print('Game is a tie! ({})'.format(game_result.conditions['draw']))
+        print('Game is a tie! ({})'.format(game_result.conditions.get('draw', 'invalid')))
 
 
 if __name__ == '__main__':
