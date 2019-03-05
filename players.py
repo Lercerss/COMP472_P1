@@ -22,7 +22,7 @@ class Player:
         prompt = '({}) Enter next move: '.format(self.name)
         move = input(prompt)
 
-        while not (_add_format.fullmatch(move) or _rec_format.fullmatch(move)):
+        while not (_add_format.match(move) or _rec_format.match(move)):
             print('Invalid format, expecting: ' + ADD_MOVE_FORMAT + ' or ' + RECYCLE_FORMAT)
             move = input(prompt)
         return Move.from_str(move)

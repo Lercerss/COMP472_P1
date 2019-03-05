@@ -113,11 +113,12 @@ class GameBoard:
 
     def _verify_add(self, move):
         """Checks that the given move would be a legal add"""
-        return Result({
+        result = {
             'cards left': self._num_moves < 24,
             'space available': self._space_avail(move.x, move.y, move.placement),
-            **self._verify_move(move).conditions
-        })
+        }
+        result.update(self._verify_move(move).conditions)
+        return Result(result)
 
     def _add_card(self, move):
         result = self._verify_add(move)
@@ -144,7 +145,7 @@ class GameBoard:
     def _verify_recycle(self, move):
         """Checks that the given move would a legal recycling"""
         found = self._find_old_move(move)
-        result = Result({
+        result = {
             'all cards placed': self._num_moves >= 24,
             'card exists': found,
             'can remove': self._can_remove(move),
@@ -153,9 +154,9 @@ class GameBoard:
             'space available': (move.old_pos1[0] == move.x and move.old_pos1[1] == move.y and found
                                 and not found[0].placement == move.placement) or self._space_avail(move.x, move.y,
                                                                                                    move.placement),
-            **self._verify_move(move).conditions
-        })
-        return result
+        }
+        result.update(self._verify_move(move).conditions)
+        return Result(result)
 
     def _remove(self, old_move):
         self._moves.remove(old_move)
@@ -323,10 +324,10 @@ class Move:
 
     def __str__(self):
         if self.type:
-            return f'{X_LETTERS_INVERSE[self.old_pos1[0]]} {self.old_pos1[1] + 1} ' \
-                   f'{X_LETTERS_INVERSE[self.old_pos2[0]]} {self.old_pos2[1] + 1} ' \
-                   f'{self.placement} {X_LETTERS_INVERSE[self.x]} {self.y + 1}'
-        return f'{self.type} {self.placement} {X_LETTERS_INVERSE[self.x]} {self.y + 1}'
+            return '{} {} {} {} {} {} {}'.format(X_LETTERS_INVERSE[self.old_pos1[0]], self.old_pos1[1] + 1,
+                                                 X_LETTERS_INVERSE[self.old_pos2[0]], self.old_pos2[1] + 1,
+                                                 self.placement, X_LETTERS_INVERSE[self.x], self.y + 1)
+        return '{} {} {} {}'.format(self.type, self.placement, X_LETTERS_INVERSE[self.x], self.y + 1)
 
 
 class Result:
