@@ -2,12 +2,14 @@ from copy import deepcopy
 
 MAX_X = 8
 MAX_Y = 12
-_DEFAULT_BOARD = [[(0, 0) for _ in range(MAX_Y)] for _ in range(MAX_X)]
+MAX_CARDS = 24
+EMPTY_TILE = (0, 0)
+_DEFAULT_BOARD = [[EMPTY_TILE for _ in range(MAX_Y)] for _ in range(MAX_X)]
 
-R = 1
-W = 2
-F = 1
-O = 2
+R = 1  # Red
+W = 2  # White
+F = 1  # Full
+O = 2  # Open
 
 PLACEMENTS = {
     1: [((R, F), None), ((W, O), None)],  # Horizontal RF-WO
@@ -31,6 +33,21 @@ X_LETTERS = {
     'H': 7,
 }
 X_LETTERS_INVERSE = {v: k for k, v in X_LETTERS.items()}
+
+MAX_DEPTH = 3
+
+KEY_GEN = {
+    0: lambda move: (move.x, move.y),
+    1: lambda move: (move.x + move.placement % 2, move.y + (move.placement + 1) % 2),
+    2: lambda move: move.old_pos1,
+    3: lambda move: move.old_pos2
+}
+VAL_GEN = {
+    0: lambda move: move.card[0][0],
+    1: lambda move: move.card[move.placement % 2][(move.placement + 1) % 2],
+    2: lambda move: EMPTY_TILE,
+    3: lambda move: EMPTY_TILE
+}
 
 
 def _count_tile(tile, count_red, count_white, count_full, count_open):
@@ -66,13 +83,18 @@ def _str_tile(tile):
     return bg.format(char)
 
 
+def moves_to_positions(moves):
+    return {KEY_GEN[pos](move): VAL_GEN[pos](move)
+            for move in moves for pos in range(4 if move.type else 2)}
+
+
 class GameBoard:
 
     def __init__(self):
         self._board = deepcopy(_DEFAULT_BOARD)
         self._moves = []
         self._num_moves = 0
-        self.last_recycled = None
+        self.last_moved = None
 
     def __str__(self):
         # buff = '---' * 8 + '--'
@@ -97,12 +119,12 @@ class GameBoard:
         """Checks that the given placement would not overlap existing placed cards"""
         into_tile = self._board[x][y]
         into_tile2 = self._board[x + placement % 2][y + (placement + 1) % 2]
-        return into_tile == (0, 0) and into_tile2 == (0, 0)
+        return into_tile == EMPTY_TILE and into_tile2 == EMPTY_TILE
 
     def _has_support(self, x, y, placement):
         """Checks that the given placement would not hang over an empty cell"""
         return y == 0 or (
-                self._board[x][y - 1] != (0, 0) and (placement % 2 == 0 or self._board[x + 1][y - 1] != (0, 0)))
+                self._board[x][y - 1] != EMPTY_TILE and (placement % 2 == 0 or self._board[x + 1][y - 1] != EMPTY_TILE))
 
     def _verify_move(self, move):
         if not _within_bounds(move.x, move.y, move.placement):
@@ -118,7 +140,7 @@ class GameBoard:
             return result_move
 
         result = {
-            'cards left': self._num_moves < 24,
+            'cards left': self._num_moves < MAX_CARDS,
             'space available': self._space_avail(move.x, move.y, move.placement),
         }
         result.update(result_move.conditions)
@@ -128,17 +150,16 @@ class GameBoard:
         result = self._verify_add(move)
         if result.success:
             self._apply(move)
-            self.last_recycled = move
         return result
 
     def _can_remove(self, move):
         """Checks that the card can be removed and keep the board state legal
         There cannot be additional cards placed above the one being moved
         """
-        return self._board[move.old_pos1[0]][move.old_pos1[1] + 2] == (0, 0) if \
+        return self._board[move.old_pos1[0]][move.old_pos1[1] + 2] == EMPTY_TILE if \
             move.old_pos1[1] - move.old_pos2[1] == 0 else (
-                self._board[move.old_pos1[0]][move.old_pos1[1] + 1] == (0, 0) and
-                self._board[move.old_pos1[0] + 1][move.old_pos1[1] + 1] == (0, 0))
+                self._board[move.old_pos1[0]][move.old_pos1[1] + 1] == EMPTY_TILE and
+                self._board[move.old_pos1[0] + 1][move.old_pos1[1] + 1] == EMPTY_TILE)
 
     def _find_old_move(self, move):
         return [
@@ -155,11 +176,11 @@ class GameBoard:
 
         found = self._find_old_move(move)
         result = {
-            'all cards placed': self._num_moves >= 24,
+            'all cards placed': self._num_moves >= MAX_CARDS,
             'card exists': found,
             'can remove': self._can_remove(move),
-            'different than last': not self.last_recycled or (
-                    self.last_recycled.x != move.old_pos1[0] or self.last_recycled.y != move.old_pos1[1]),
+            'different than last': not self.last_moved or (
+                    self.last_moved.x != move.old_pos1[0] or self.last_moved.y != move.old_pos1[1]),
             'space available': (move.old_pos1[0] == move.x and move.old_pos1[1] == move.y and found
                                 and not found[0].placement == move.placement) or self._space_avail(move.x, move.y,
                                                                                                    move.placement),
@@ -169,15 +190,14 @@ class GameBoard:
 
     def _remove(self, old_move):
         self._moves.remove(old_move)
-        self._board[old_move.x][old_move.y] = (0, 0)
-        self._board[old_move.x + old_move.placement % 2][old_move.y + (old_move.placement + 1) % 2] = (0, 0)
+        self._board[old_move.x][old_move.y] = EMPTY_TILE
+        self._board[old_move.x + old_move.placement % 2][old_move.y + (old_move.placement + 1) % 2] = EMPTY_TILE
 
     def _recycle_card(self, move):
         result = self._verify_recycle(move)
         if result.success:
             self._remove(result.conditions['card exists'][0])
             self._apply(move)
-            self.last_recycled = move
         return result
 
     def _win_diagonal(self):
@@ -296,11 +316,77 @@ class GameBoard:
         return self._win_diagonal() or self._win_horizontal() or self._win_vertical()
 
     def make_move(self, move):
+        """Executes a move on the board, affecting state if the move is found to be legal"""
         result = self._recycle_card(move) if move.type else self._add_card(move)
         if result.success:
             self._moves.append(move)
+            self.last_moved = move
             self._num_moves += 1
         return result
+
+    def board_lookup(self, changed_positions, x, y):
+        """Looks up a position on the board, accounting for forecasted moves"""
+        return changed_positions.get((x, y)) or self._board[x][y]
+
+    def _max_height_for_x(self, x, changed_positions):
+        """Finds the height of the highest empty tile in the given column"""
+        for y in range(MAX_Y):
+            if self.board_lookup(changed_positions, x, y) == EMPTY_TILE:
+                return y
+        return MAX_Y
+
+    def _generate_add_moves(self, changed_positions):
+        """Looks at every position on the board where a card can be added on top"""
+        for x in range(MAX_X):
+            y = self._max_height_for_x(x, changed_positions)
+
+            if y < MAX_Y - 1:
+                yield from (Move(0, placement, x, y) for placement in [2, 4, 6, 8])
+
+            if x < MAX_X - 1 and MAX_Y > y == self._max_height_for_x(x + 1, changed_positions):
+                yield from (Move(0, placement, x, y) for placement in [1, 3, 5, 7])
+
+    def _can_recycle_move(self, move, changed_positions):
+        return self.board_lookup(changed_positions, move.x, move.y + 2) == EMPTY_TILE if \
+            move.placement % 2 else (
+                self._board[move.x][move.y + 1] == EMPTY_TILE and
+                self._board[move.x + 1][move.y + 1] == EMPTY_TILE
+        )
+
+    def _generate_recycle_moves(self, moves, changed_positions):
+        """Looks at every placed card that can be removed, then looks at every possible replacement for each card"""
+        recyclable_moves = [move for move in (self._moves + moves)[:-1] if
+                            self._can_recycle_move(move, changed_positions)]
+        for move in recyclable_moves:
+            old_pos1 = (move.x, move.y)
+            old_pos2 = (move.x + move.placement % 2, move.y + (move.placement - 1) % 2)
+            _changed_positions = changed_positions.copy()
+            _changed_positions.update({
+                old_pos1: EMPTY_TILE,
+                old_pos2: EMPTY_TILE
+            })
+            for x in range(MAX_X):
+                y = self._max_height_for_x(x, _changed_positions)
+
+                if y < MAX_Y - 1:
+                    yield from (Move(1, placement, x, y, old_pos1, old_pos2) for placement in [2, 4, 6, 8])
+
+                if x < MAX_X - 1 and MAX_Y > y == self._max_height_for_x(x + 1, _changed_positions):
+                    yield from (Move(1, placement, x, y, old_pos1, old_pos2) for placement in [1, 3, 5, 7])
+
+    def _generate_moves(self, moves):
+        """Returns a generator for all possible moves with the current board state and given forecasted moves"""
+        changed_positions = moves_to_positions(moves)
+
+        if self._num_moves + len(moves) < MAX_CARDS:
+            return self._generate_add_moves(changed_positions)
+        return self._generate_recycle_moves(moves, changed_positions)
+
+    def possible_moves(self, moves=None, level=1):
+        if level < MAX_DEPTH - 1:
+            return {move: self.possible_moves(moves + [move] if moves else [move], level + 1)
+                    for move in self._generate_moves(moves or [])}
+        return list(self._generate_moves(moves))  # Max depth reached
 
 
 class Move:
@@ -337,6 +423,24 @@ class Move:
                                                  X_LETTERS_INVERSE[self.old_pos2[0]], self.old_pos2[1] + 1,
                                                  self.placement, X_LETTERS_INVERSE[self.x], self.y + 1)
         return '{} {} {} {}'.format(self.type, self.placement, X_LETTERS_INVERSE[self.x], self.y + 1)
+
+    def __hash__(self):
+        """Recycling moves: 1000000 to 7118711710
+        Add moves: 1 to 7118"""
+        if self.type:
+            return self.x * 10 ** 9 + self.y * 10 ** 7 + self.placement * 10 ** 6 + \
+                   self.old_pos1[0] * 10 ** 5 + self.old_pos1[1] * 10 ** 3 + \
+                   self.old_pos2[0] * 10 ** 2 + self.old_pos2[1]
+        return self.x * 10 ** 3 + self.y * 10 + self.placement
+
+    def __eq__(self, other):
+        return isinstance(other, Move) and \
+               self.x == other.x and \
+               self.y == other.y and \
+               self.placement == other.placement and \
+               self.type == other.type and \
+               self.old_pos1 == other.old_pos1 and \
+               self.old_pos2 == other.old_pos2
 
 
 class Result:
