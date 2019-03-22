@@ -34,7 +34,6 @@ X_LETTERS = {
 }
 X_LETTERS_INVERSE = {v: k for k, v in X_LETTERS.items()}
 
-MAX_DEPTH = 3
 
 KEY_GEN = {
     0: lambda move: (move.x, move.y),
@@ -382,9 +381,9 @@ class GameBoard:
             return self._generate_add_moves(changed_positions)
         return self._generate_recycle_moves(moves, changed_positions)
 
-    def possible_moves(self, moves=None, level=1):
-        if level < MAX_DEPTH - 1:
-            return {move: self.possible_moves(moves + [move] if moves else [move], level + 1)
+    def possible_moves(self, depth, moves=None, level=1):
+        if level < depth - 1:
+            return {move: self.possible_moves(depth, moves + [move] if moves else [move], level + 1)
                     for move in self._generate_moves(moves or [])}
         return list(self._generate_moves(moves))  # Max depth reached
 

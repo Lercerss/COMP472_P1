@@ -1,4 +1,6 @@
-from heuristics import naive
+from heuristics import informed
+
+MAX_DEPTH = 3
 
 
 class MiniMax:
@@ -11,6 +13,9 @@ class MiniMax:
         self._num_evals = 0
         self._level_2_nodes = []
 
+    def _condition_for_level(self, level):
+        return (level + self._win_condition) % 2
+
     def _trace(self, trace_file, e):
         if trace_file:
             trace_file.writelines(
@@ -20,7 +25,7 @@ class MiniMax:
             )
 
     def _min_max(self, level, sub_results):
-        fn = (min, max)[(level + self._win_condition) % 2]  # Color maximizes, dots minimize
+        fn = (min, max)[self._condition_for_level(level)]  # Color maximizes, dots minimize
         return fn(sub_results.items())
 
     def _evaluate(self, board, possible_moves, path=None, level=1):
@@ -37,17 +42,18 @@ class MiniMax:
             return self._min_max(level, sub_results)
 
         # Deepest level is a list of moves instead of a dict
-        sub_results = {naive(board, path + [move]): path + [move] for move in possible_moves}
+        condition = self._condition_for_level(level)
+        sub_results = {informed(board, path + [move], condition): path + [move] for move in possible_moves}
         self._num_evals += len(possible_moves)
         return self._min_max(level, sub_results)
 
     def make_move(self, board, trace_file):
         self._reset()
 
-        e, best_moves = self._evaluate(board, board.possible_moves())
+        e, best_moves = self._evaluate(board, board.possible_moves(MAX_DEPTH))
         self._trace(trace_file, e)
 
-        print("Found path: {}".format([str(move) for move in best_moves]))
+        print("Found path: {} with e={}".format([str(move) for move in best_moves], e))
         print("Computer move: {}".format(best_moves[0]))
 
         return board.make_move(best_moves[0])
